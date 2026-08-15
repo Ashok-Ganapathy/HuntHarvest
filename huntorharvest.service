@@ -1,0 +1,14 @@
+
+[Unit]
+Description=HuntorHarvest.com Earnings ML Pro
+After=network.target
+
+[Service]
+User=root
+WorkingDirectory=/root/huntorharvest
+Environment=POLYGON_KEY=74DMSl0HQK1PSLhQ4YVPW2sVq9HIgJ9I
+ExecStart=/usr/bin/python3 -m uvicorn app:app --host 127.0.0.1 --port 8000 --workers 2
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

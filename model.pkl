@@ -1,0 +1,1 @@
+/var/www/huntorharvest/bounce_model.pkl
