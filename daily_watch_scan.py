@@ -188,7 +188,9 @@ def main():
     if "Earnings Date" not in fdf.columns or "Ticker" not in fdf.columns:
         raise RuntimeError("Finviz export missing expected columns - check FINVIZ_EXPORT_COLUMNS")
 
-    candidates = []  # (ticker, track, report_date)
+    candidates = []    # (ticker, track, report_date) - actively tracked starting tomorrow
+    preview_amc = []   # (ticker, report_date) - reports tomorrow evening, informational only,
+                        # real tracking starts with tomorrow evening's own scan run
     for _, row in fdf.iterrows():
         ticker = row.get("Ticker")
         if not ticker or ticker not in tracked:
@@ -202,10 +204,28 @@ def main():
             candidates.append((ticker, 'bmo', ed))
         elif ed == today and timing == 'a':
             candidates.append((ticker, 'amc', ed))
+        elif ed == watch_date and timing == 'a':
+            # Reports tomorrow evening - real reaction is the day AFTER (Tuesday if
+            # watch_date is Monday), so this isn't an active tracking candidate yet
+            # (that starts with tomorrow evening's own scan run). Informational-only
+            # preview so it doesn't first appear out of nowhere the day it's reacting.
+            preview_amc.append((ticker, ed))
 
     n_bmo = sum(1 for c in candidates if c[1] == 'bmo')
     n_amc = sum(1 for c in candidates if c[1] == 'amc')
-    log.info(f"Candidates: {len(candidates)} (BMO={n_bmo}, AMC={n_amc})")
+    log.info(f"Candidates: {len(candidates)} (BMO={n_bmo}, AMC={n_amc}), "
+             f"preview (tomorrow-evening AMC, not yet tracked): {len(preview_amc)}")
+
+    for ticker, report_date in preview_amc:
+        try:
+            cur.execute("""
+                INSERT INTO upcoming_earnings (ticker, report_date, report_time, confirmed, source)
+                VALUES (%s,%s,'amc',%s,%s)
+                ON DUPLICATE KEY UPDATE confirmed=VALUES(confirmed), source=VALUES(source)
+            """, (ticker, report_date, True, 'finviz'))
+        except Exception as e:
+            log.error(f"{ticker} preview write FAILED: {e}")
+    conn.commit()
 
     if not candidates:
         log.info("No qualifying reporters for the next session - nothing to write. Done.")

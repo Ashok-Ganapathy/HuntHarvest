@@ -6,22 +6,17 @@ This file is auto-read at the start of every session in this folder. **All criti
 
 ## 🟢 CURRENT STATE — Greet from this immediately
 
-**Session 1 (Aug 15–16, 2026) — v1 discovered/archived/torn down, v2 built end-to-end, verified, and LIVE at huntorharvest.com.** `~/HuntHarvest` turned out to already have a working (but buggy) droplet-deployed v1 site. Full audit found real structural bugs. User chose to archive v1 completely and rebuild — extended design conversation locked a v2 spec (see PROJECT_STATE.md), then explicit "build" go-ahead was given.
-- ✅ v1 fully archived (`~/HuntHarvest_v1_archive`) and torn down. New droplet (142.93.196.178, 2GB RAM, replaced the original which died mid-MySQL-install) with MySQL (8 tables) + Python stack.
-- ✅ **Backfill complete**: 37,773 events, 2,696 tickers, 2022-01-01→2026-08-14. Two real data-integrity bugs found and fixed via smoke-testing/QC: point-in-time market cap qualification, and Polygon's ticker-symbol reuse (FB→META-style reassignments splicing unrelated companies' price histories together — caught via a fake +1394% "META" event, now guarded by a `ticker_valid_from()` check).
-- ✅ **Models trained** (class-balanced, honest ~63-64% accuracy with balanced recall — an earlier unweighted pass showed misleadingly high 81% accuracy that was just always guessing the majority class) and **QC passed** (all 8 structural checks green, including the SEZL proof case that was missing in v1).
-- ✅ **Frontend built**: sidebar nav (Earnings Watch/System), full-width sortable 28-column table, expandable per-ticker history, admin config panel. Iterated live with the user through several rounds of column additions/reordering.
-- ✅ **Live quotes** table + script built (current price, day/week/month change, relative volume) — populated once, not yet scheduled to refresh periodically.
-- ✅ **LIVE**: real `huntharvest` systemd service running, DNS cut over in Cloudflare, Let's Encrypt SSL issued (expires 2026-11-14, auto-renews), `huntharvest-quotes.timer` (every 30 min) and `huntharvest-train.timer` (monthly) both enabled. End-to-end verified over `https://huntorharvest.com`.
-
-**What's next:** The full daily pipeline (Phases 1, 2, and 3) is built, deployed, and verified 2026-08-16 — including running the Phase 3 historical backfill for real across all 37,786 existing events. A real bug was caught and fixed during that verification (post-settlement durability was defaulting to a false "held" for reverted events due to a `price_path` data-availability gap in the original historical backfill, not a genuine result) — fixed and rerun. One known real limitation, not hidden: `dead_cat` shape classification can't apply to historical reverted events for the same reason, only to new events this pipeline creates going forward; fixing the old data needs new Polygon calls, flagged as a follow-up, not done. The full ~2,696-ticker α/β backfill also wasn't run (real API cost) — only proven on 3 real tickers. **Monday 2026-08-17 remains the first real end-to-end trading-day test** — HTHT is genuinely on the watchlist reporting BMO that morning. Lower-priority cleanup still pending: destroy the dead old droplet, `git init` v2 code, rename the droplet in DO's dashboard. See TASKS.md.
+**Session 1 (Aug 15–16, 2026) — v1 discovered/archived/rebuilt as v2, full daily pipeline (Phases 1-3) built and live-verified, git + droplets cleaned up. LIVE and self-sustaining at huntorharvest.com.**
+- ✅ v2 core: backfill (37,773 events/2,696 tickers), models (63-64% accuracy), QC, frontend, go-live infra — all from Session 1's first half (full detail: PROJECT_STATE.md).
+- ✅ **Daily pipeline (Phases 1-3) live-verified against real data**: evening watchlist scan → live reaction polling/checkpoint-lock → settle into permanent history → AR/CAR + shape-taxonomy analysis. Real bugs caught+fixed during verification, not shipped silently (see PROJECT_STATE.md for specifics). Both deferred backfills (α/β, `price_path` extension) done. Edge-strength tracking verified (73.6% recent vs 73.1% prior win rate → holding).
+- ✅ Git properly scoped to `~/HuntHarvest` (a stray home-level `.git` was found+fixed), v1 preserved via a real `v1-legacy` tag, v2 live on `main`. Droplet renamed + old one destroyed (Ashok, confirmed via DO API).
+- **Monday 2026-08-17 = first real trading-day test** (HTHT reports BMO) — no other open items from this session.
 
 **Active state:**
-- Live site: **https://huntorharvest.com** (and www) — real data, real predictions, real UI
-- Droplet: `142.93.196.178` (2GB RAM) — SSH via `~/.ssh/huntharvest_id_ed25519`. DO dashboard still shows default name `ubuntu-s-1vcpu-2gb-nyc1`, not renamed (cosmetic).
-- Old droplet `165.227.88.24` is dead, not yet destroyed in DO dashboard — nothing on it is unique (fully archived locally).
-- Login: `ashok` (admin) / `train` (user) — see SECRETS.md for passwords.
-- Local folder: `~/HuntHarvest` mirrors what's deployed to `/var/www/huntorharvest` on the new droplet.
+- Live site: **https://huntorharvest.com** (and www)
+- Droplet: `142.93.196.178` ("HuntHarvest" in DO), SSH via `~/.ssh/huntharvest_id_ed25519`
+- Login: `ashok` (admin) / `train` (user) — see SECRETS.md
+- Local folder: `~/HuntHarvest`, git-tracked, mirrors `/var/www/huntorharvest` on the droplet
 
 ---
 

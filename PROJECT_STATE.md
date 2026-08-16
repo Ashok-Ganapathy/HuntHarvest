@@ -153,3 +153,113 @@ Given these were structural (not superficial) bugs, and the user's own read was 
 - **Frontend built** (`index.html`) iteratively with live user feedback: sidebar navigation (Earnings Watch / System tabs, admin config + account moved under System), a sortable 28-column table (server-side sort via an allowlisted column map), expandable per-ticker case history rows. Bugs found and fixed live: a JS crash when a ticker had zero prior events (missing `history` key in one API code path), a summary-text bug that mixed drops and gains under one ambiguous verb, a full-width layout fix (content was capped at 1200px regardless of viewport), and several rounds of column reordering to put decision-relevant fields (Event/Source/Confidence/Recom) near Ticker instead of buried mid-table.
 - **Live quotes** built (`update_live_quotes.py`, `live_quotes` table) — current price, day/week/month % change, relative volume, computed from a ~45-day bars fetch per ticker. Populated once for all 2,696+ tickers; not yet scheduled to refresh periodically.
 - **Not yet done**: starting the real systemd service (only ad-hoc test instances have run, via SSH tunnel for live browser preview during development), Cloudflare DNS cutover, fresh SSL cert, scheduling live-quote refresh and periodic retraining.
+
+### Session 1 continued (2026-08-16) — go-live
+Real `huntharvest` systemd service started, Cloudflare DNS cut over to 142.93.196.178, Let's
+Encrypt SSL issued (ECDSA, expires 2026-11-14, auto-renews), `huntharvest-quotes.timer`
+(30 min) and `huntharvest-train.timer` (monthly) enabled. End-to-end verified live over
+`https://huntorharvest.com`. App is live and self-sustaining as of this point.
+
+### Session 1 continued (2026-08-16) — research phase, daily pipeline design
+With the app live, dug into the gap between it (backward-looking lookup tool) and Ashok's
+actual desired workflow (small daily watchlist, live reaction tracking, compare to pattern).
+Extensive real-material research pass, not just intro-level: post-earnings announcement
+drift (PEAD) literature, event-study methodology (abnormal returns/CAR, market-model
+regression), purged cross-validation (López de Prado - found `train_models.py`'s random
+`train_test_split` as a real, concrete gap), SUE, factor-zoo/significance discipline
+(Harvey-Liu-Zhu), and - the most important correction - literature specific to *extreme*
+(≥10%) moves showing attention-driven overreaction + *partial* reversal, not the classic
+moderate-surprise underreaction-drift the original framing leaned on. Also cross-checked
+AGSTOX's structurally similar Fingerprint Bounce/Chart Pattern Detector features against
+the same findings (real: no abnormal-return adjustment either; AGSTOX is actually *ahead*
+on purged-style time-ordered holdout validation - noted in AGSTOX's own TASKS.md as a
+backlog item, not built). Full writeup: `Specs/RESEARCH_institutional_methodology.md`,
+`Specs/PEAD_Research_Summary.pptx`.
+
+Locked design in `Specs/SPEC_daily_pipeline.md`: two tracks (BMO baseline=prior close,
+checkpoint=premarket-clears-threshold; AMC baseline=prior close, checkpoint=next-day open
+specifically, not the noisier after-hours/premarket prints - both research- and
+microstructure-literature-backed), an AR/CAR event-study foundation (252-trading-day
+estimation window ending 30 days before the event, min 120 days, running *alongside* the
+raw-% threshold rather than replacing it), and a post-event analysis layer (post-settlement
+durability, reaction-accuracy scoring, and a shape taxonomy including a new PARTIAL-REVERSAL
+bucket - locked as the *expected modal* outcome for this population, not an edge case,
+per the extreme-move research finding above).
+
+### Session 1 continued (2026-08-16) — daily pipeline build, Phases 1-3, all live-verified
+Built and deployed in three phases, each with real go-ahead and real verification against
+live or historical data, not just clean exit codes:
+
+- **Phase 1** (`daily_watch_scan.py`, new `daily_watch` table, `/api/daily-watch`, "Daily
+  Watch" tab - now the default view): evening scan builds tomorrow's small watchlist,
+  reusing AGSTOX's Finviz earnings-calendar-parsing technique rather than waiting on a
+  Polygon plan upgrade. Live-verified: real HTHT row (reports 2026-08-17 BMO) flowing
+  DB→API→frontend.
+- **Phase 2** (`live_reaction_poll.py` every 5 min, `settle_watch.py`... actually settle
+  moved to a later step below, checkpoint/prediction columns on `daily_watch`,
+  `live_reaction_ticks`, `/api/daily-watch/{id}/ticks` and `/history-compare`): live
+  minute-by-minute reaction capture, checkpoint-lock detection per track, confirmed
+  event card (existing trained model run on Phase 1's baseline features), and the
+  historical-comparison view (this ticker's own past events' minute data, on-demand).
+  Verified against a real historical event (WTI, 2026-08-10, +11.37%) via a temporary
+  test row since Phase 2 was built on a weekend - real Polygon bars, correct checkpoint
+  lock, real model prediction, cleaned up after. **Real bug caught+fixed**: the AMC
+  table's column headers weren't updated when Status/Confirmed Read columns were added -
+  would have silently misaligned columns once a real AMC row appeared.
+- **Phase 3** (`event_analysis.py` shared math, `settle_watch.py` every 15 min,
+  `backfill_event_analysis.py`, `track_live_events.py` daily, edge-strength tracking added
+  to `train_models.py`): AR/CAR market-model regression, retracement-fraction-based shape
+  taxonomy, post-settlement durability, reaction-accuracy scoring. Ran the historical
+  backfill for real across all 37,786 existing events (zero API cost, pure local
+  computation). **Real bug caught and fixed during verification, not after**: 28,542
+  reverted events initially showed `post_settlement_outcome='held'` - checking the actual
+  numbers (reverted events averaged only 66.6 observed days vs. 332 for non-reverted)
+  revealed this was a false default, not a genuine result: `ingest_historical.py`'s
+  original backfill stops recording `price_path` the day a reversion is first detected,
+  so there was no data past that point to check durability against. Fixed
+  `classify_post_settlement()` to return `None` (honestly unknown) instead of defaulting
+  to "held," reset, reran. Also found a real, honest limitation left unfixed at the time:
+  `dead_cat` shape classification was structurally unreachable for historical reverted
+  events for the same reason - flagged as a scoped follow-up (extending `price_path` needs
+  real API calls), not silently hidden.
+
+All 7 pipeline timers confirmed active on the droplet: dailywatch, livepoll, settle,
+tracklive, analysisbackfill (added later, see below), quotes, train.
+
+### Session 1 continued (2026-08-16) — deferred backfills, edge-strength, git/droplet cleanup
+- **Combined backfill** (`backfill_deep_analysis.py`, explicit go-ahead, ~20 min real
+  runtime): one Polygon call per ticker (not per event) covering both deferred items -
+  α/β computed for 2,587/3,277 tickers, `price_path` extended 40 real days past reversion
+  for 30,009 reverted events. Reran the analysis backfill afterward and **verified the
+  real effect rather than trusting a matching summary log line** (it looked suspiciously
+  identical to the pre-extension run's numbers) - confirmed via the underlying data that
+  `dead_cat` went from 0 (structurally unreachable) to 1,911 genuine classifications, and
+  the shape distribution shifted substantially now that `retracement_fraction` reflects
+  real forward data instead of the crossing-moment snapshot.
+- **Gap caught in Phase 3's own scheduling**: `backfill_event_analysis.py` had only ever
+  been run manually - nothing was scheduled to re-check events as they crossed the 90-day
+  settled window. Added `huntharvest-analysisbackfill.timer` (weekly, zero API cost).
+- **Edge-strength bug caught testing it for the first time**: `check_edge_strength()`
+  (added to `train_models.py` earlier) assumed dict-cursor access but this file's
+  `conn.cursor()` returns plain tuples - crashed on first real run. Fixed, reran clean.
+  **First real result**: recent win rate 73.59% (n=5,423) vs. prior 73.07% (n=4,326) →
+  trend=holding, logged to `edge_strength_log`.
+- **Git cleanup**: investigating "git init v2 code" turned up a real, unrelated finding -
+  `~/HuntHarvest` had no `.git` of its own; a stray one was sitting at
+  `/Users/ashokganapathy/.git` (the whole home folder), remote already pointed at the
+  HuntHarvest GitHub repo, no commits yet (no damage done, but `git add -A` from inside
+  HuntHarvest would have staged the entire home directory). Flagged directly rather than
+  fixed silently. Also found the remote's `main` wasn't empty - it held v1's actual single
+  commit, and the documented `v1-legacy` tag had never actually been pushed. Fixed with
+  explicit go-ahead at each step: removed the stray `.git`, `git init` properly scoped to
+  `~/HuntHarvest`, tagged the real v1 commit as `v1-legacy` (pushed), committed all 39 v2
+  files, force-pushed (`--force-with-lease`) as the new `main`. Verified on the remote.
+- **Droplet cleanup**: Ashok renamed the live droplet ("HuntHarvest" in DO, was the
+  default hostname) and destroyed the dead old one (165.227.88.24) himself the same
+  morning - confirmed via a fresh write-scoped DO token (added to SECRETS.md) that both
+  were already done before attempting either.
+
+**End of session state**: full daily pipeline (Phases 1-3) live and self-sustaining on its
+own timers. **Monday 2026-08-17 is the first real end-to-end trading-day test** - HTHT is
+genuinely on the watchlist reporting BMO that morning. No open items from this session;
+remaining backlog is pre-existing and lower-priority (see TASKS.md).

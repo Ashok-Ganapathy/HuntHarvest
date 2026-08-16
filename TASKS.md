@@ -1,5 +1,41 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Real gap found + fixed via live use: AMC-tomorrow-evening preview — 2026-08-16
+Ashok noticed FN/XP/YALA missing from tomorrow's watchlist despite knowing they report
+soon. Traced it: not a bug in the existing logic - all three report **8/17 after close**,
+so their real reaction is Tuesday 8/18 (next-session-open rule), correctly excluded from
+Monday's active tracking. But this exposed a genuine UX gap: no advance visibility into
+tomorrow-evening's AMC reporters until the evening they're already reacting. Added a third
+"Reporting Tomorrow Evening — After Close" preview section: `daily_watch_scan.py` now also
+writes tomorrow-evening AMC reporters to `upcoming_earnings` (identity/timing only,
+deliberately no baseline features - today's close isn't their correct baseline, Monday's
+close is, captured correctly by Monday evening's own scan run). New
+`preview_amc_tomorrow_evening` field on `/api/daily-watch`. Live-verified: real scan run
+found HTHT (tracked) + FN/XP/YALA (preview), rendered correctly in the browser.
+
+## 🟢 Git properly set up for v2 — closed 2026-08-16
+**Real, unrelated-to-the-task finding caught while investigating, not blindly executed
+around**: `~/HuntHarvest` had no `.git` of its own - a stray `.git` was instead sitting at
+`/Users/ashokganapathy/.git` (the whole home folder), remote already pointed at the
+HuntHarvest GitHub repo, no commits yet (so no damage done, but `git add -A` from inside
+HuntHarvest would have staged the entire home directory - .ssh, .bash_history,
+.claude.json, AGSTOX's own files, everything). Flagged directly instead of fixing it
+silently. Also found the remote's `main` wasn't empty either - it held v1's actual single
+commit ("whole site from droplet"), and the `v1-legacy` tag the docs described had never
+actually been pushed. Fixed, with explicit go-ahead at each consequential step: removed the
+stray home-level `.git`; `git init` properly scoped to `~/HuntHarvest`; tagged the existing
+remote main commit as `v1-legacy` (now real, pushed); committed all 39 v2 files (respecting
+the existing `.gitignore` - confirmed no `SECRETS.md`/`.env`/`venv`/`__pycache__` got
+staged); force-pushed (`--force-with-lease`, not a bare `--force`) as the new `main`.
+Verified on the remote afterward: `main` → v2 commit `9449d6c`, `v1-legacy` tag → old
+commit `d3abd71`, clean working tree.
+
+**Droplet rename + destroy — closed 2026-08-16.** Ashok handled both himself in the DO
+dashboard that same morning. Confirmed via a fresh write-scoped DigitalOcean token (added
+to SECRETS.md) before touching anything: droplet 592705831 already shows as "HuntHarvest"
+(not the old default hostname), and 165.227.88.24 no longer appears in the account's
+droplet list at all. Nothing left to do — SECRETS.md updated to match reality.
+
 ## 🟢 Backfill items #1/#2 completed + edge-strength verified 2026-08-16
 Ran the deep backfill (`backfill_deep_analysis.py`, explicit go-ahead) across all 3,277
 tickers: α/β computed for 2,587 tickers, `price_path` extended for 30,009 reverted events.

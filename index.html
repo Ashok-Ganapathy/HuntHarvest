@@ -136,6 +136,12 @@
             </table>
           </div>
         </div>
+
+        <div class="panel-box">
+          <h3>Reporting Tomorrow Evening — After Close</h3>
+          <div class="sub" style="margin-bottom:8px;">Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.</div>
+          <div id="previewAmcBody" class="sub"></div>
+        </div>
       </div>
 
       <div id="tab-watch" class="tab-panel">
@@ -403,6 +409,10 @@ async function loadDailyWatch() {
     else data.bmo.forEach(r => renderDailyRow(bmoBody, r));
     if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close today.</td></tr>`;
     else data.amc.forEach(r => renderDailyRow(amcBody, r));
+
+    const previewEl = document.getElementById("previewAmcBody");
+    const preview = data.preview_amc_tomorrow_evening || [];
+    previewEl.textContent = preview.length ? preview.join(", ") : "None reporting tomorrow evening.";
   } catch (e) {
     metaEl.textContent = `Failed to load: ${e.message}`;
   }

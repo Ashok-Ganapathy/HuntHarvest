@@ -285,6 +285,19 @@ def daily_watch(user=Depends(get_user)):
                 "predicted_direction": r["predicted_direction"],
             }
             out["bmo" if r["track"] == "bmo" else "amc"].append(item)
+
+        # Preview (added 2026-08-16): tickers reporting the evening OF watch_date -
+        # their real reaction is the day after, so they're not an active tracking
+        # candidate yet (that starts with the following evening's own scan run).
+        # Informational only, no baseline features - today's close isn't their real
+        # baseline, so nothing to compute yet.
+        cur.execute("""
+            SELECT ticker FROM upcoming_earnings
+            WHERE report_date=%s AND report_time='amc'
+              AND ticker NOT IN (SELECT ticker FROM daily_watch WHERE watch_date=%s)
+            ORDER BY ticker
+        """, (latest, latest))
+        out["preview_amc_tomorrow_evening"] = [r["ticker"] for r in cur.fetchall()]
         return out
     finally:
         conn.close()
