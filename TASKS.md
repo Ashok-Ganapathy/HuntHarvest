@@ -1,5 +1,17 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 SMS checkpoint-lock notifications — built, deployed, real test sent 2026-08-16
+Ashok asked how he'd know about a confirmed drop/gain if not in front of the app - real
+gap, everything built so far was pull-only. New `notify.py` - direct Twilio REST API
+integration (NOT copied from AGSTOX's `send_sms()`, which was found to no longer send
+real SMS at all - fully replaced by APNs push there, kept only as a compatibility
+wrapper; HuntHarvest has no app to push to, so this needed a fresh implementation using
+the still-valid Twilio credentials). Wired into `live_reaction_poll.py` right at the
+checkpoint-lock point - fires the moment a drop/gain is confirmed, with ticker/direction/
+move%/model probability/expected days. Best-effort by design (a notification failure
+never blocks the actual settle). **Real test SMS sent and accepted by Twilio's API** -
+credentials confirmed live, not just assumed from stale docs.
+
 ## 🟢 Real gap found + fixed via live use: AMC-tomorrow-evening preview — 2026-08-16
 Ashok noticed FN/XP/YALA missing from tomorrow's watchlist despite knowing they report
 soon. Traced it: not a bug in the existing logic - all three report **8/17 after close**,

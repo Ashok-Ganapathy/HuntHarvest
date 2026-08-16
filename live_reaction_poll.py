@@ -33,6 +33,8 @@ import requests
 import numpy as np
 import pymysql
 
+from notify import send_sms
+
 POLYGON_KEY = os.getenv("POLYGON_KEY", "74DMSl0HQK1PSLhQ4YVPW2sVq9HIgJ9I")
 BASE = "https://api.polygon.io"
 MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -228,6 +230,13 @@ def poll_row(conn, row, thresholds, now_et):
             conn.commit()
             log.info(f"{row['ticker']} ({row['track'].upper()}): SETTLED, checkpoint={checkpoint['pct']:.1f}%, "
                      f"model_prob={prob}, exp_days={exp_days}")
+
+            verb = "Bounce" if direction == "drop" else "Fade"
+            sms = (f"HuntHarvest: {row['ticker']} {direction.upper()} {checkpoint['pct']:+.1f}% "
+                   f"(${checkpoint['price']:.2f}). "
+                   + (f"{verb} prob {prob*100:.0f}%" + (f", ~{exp_days:.0f}d" if exp_days is not None else "")
+                      if prob is not None else "model unavailable"))
+            send_sms(sms)  # best-effort - never blocks/breaks the settle itself on failure
         elif row["track"] == "amc":
             # AMC's checkpoint is a fixed point in time (the open print) - once we have
             # it and it doesn't qualify, this row is done, not still "watching".
