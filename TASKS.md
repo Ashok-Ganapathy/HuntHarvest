@@ -1,6 +1,22 @@
 # HuntHarvest — Pending Tasks
 
-## 🟢 SMS checkpoint-lock notifications — built, deployed, real test sent 2026-08-16
+## 🟢 Checkpoint-lock notifications — working via AGSTOX push relay, closed 2026-08-16
+SMS attempt (below) turned out to be carrier-blocked (real A2P 10DLC compliance issue,
+not fixable via code - needs Ashok's actual business registration through Twilio's
+Console directly). Email was ruled out (Ashok doesn't check it regularly). Real working
+answer: **relay through AGSTOX's already-proven push infrastructure.** Added
+`/api/internal/push` to `agstox_exchange.py` (small, additive, token-gated with the
+existing `AGSTOX_INTERNAL_TOKEN`, hardcoded to `user_id=1`/ashok - not a general
+multi-tenant relay) - reuses AGSTOX's working `send_push()` (APNs to Ashok's iOS app +
+Web Push) instead of building new infrastructure from scratch. HuntHarvest's `notify.py`
+gained `send_push_via_agstox()`, wired into `live_reaction_poll.py`'s checkpoint-lock
+point (replacing the blocked SMS call - `send_sms()` kept in the file, correct and
+ready, just not called by the live pipeline). **Two real end-to-end tests confirmed
+delivered to Ashok's phone**: one direct to the new AGSTOX endpoint, one through
+HuntHarvest's own droplet exercising the full real path. This is now the working
+notification channel - no email, no SMS.
+
+## 🟡 SMS checkpoint-lock notifications — built, but BLOCKED (see above for what's actually used)
 Ashok asked how he'd know about a confirmed drop/gain if not in front of the app - real
 gap, everything built so far was pull-only. New `notify.py` - direct Twilio REST API
 integration (NOT copied from AGSTOX's `send_sms()`, which was found to no longer send

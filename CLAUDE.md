@@ -10,6 +10,7 @@ This file is auto-read at the start of every session in this folder. **All criti
 - ✅ v2 core: backfill (37,773 events/2,696 tickers), models (63-64% accuracy), QC, frontend, go-live infra — all from Session 1's first half (full detail: PROJECT_STATE.md).
 - ✅ **Daily pipeline (Phases 1-3) live-verified against real data**: evening watchlist scan → live reaction polling/checkpoint-lock → settle into permanent history → AR/CAR + shape-taxonomy analysis. Real bugs caught+fixed during verification, not shipped silently (see PROJECT_STATE.md for specifics). Both deferred backfills (α/β, `price_path` extension) done. Edge-strength tracking verified (73.6% recent vs 73.1% prior win rate → holding).
 - ✅ Git properly scoped to `~/HuntHarvest` (a stray home-level `.git` was found+fixed), v1 preserved via a real `v1-legacy` tag, v2 live on `main`. Droplet renamed + old one destroyed (Ashok, confirmed via DO API).
+- ✅ **Checkpoint-lock push notifications working** — SMS turned out carrier-blocked (real A2P 10DLC compliance issue, not fixable via code); reused AGSTOX's already-working push infra instead via a new small `/api/internal/push` relay added to `agstox_exchange.py`. Two real end-to-end tests confirmed delivered to Ashok's phone.
 - **Monday 2026-08-17 = first real trading-day test** (HTHT reports BMO) — no other open items from this session.
 
 **Active state:**

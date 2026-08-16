@@ -33,7 +33,7 @@ import requests
 import numpy as np
 import pymysql
 
-from notify import send_sms
+from notify import send_push_via_agstox
 
 POLYGON_KEY = os.getenv("POLYGON_KEY", "74DMSl0HQK1PSLhQ4YVPW2sVq9HIgJ9I")
 BASE = "https://api.polygon.io"
@@ -232,11 +232,11 @@ def poll_row(conn, row, thresholds, now_et):
                      f"model_prob={prob}, exp_days={exp_days}")
 
             verb = "Bounce" if direction == "drop" else "Fade"
-            sms = (f"HuntHarvest: {row['ticker']} {direction.upper()} {checkpoint['pct']:+.1f}% "
-                   f"(${checkpoint['price']:.2f}). "
-                   + (f"{verb} prob {prob*100:.0f}%" + (f", ~{exp_days:.0f}d" if exp_days is not None else "")
-                      if prob is not None else "model unavailable"))
-            send_sms(sms)  # best-effort - never blocks/breaks the settle itself on failure
+            title = f"{row['ticker']} {direction.upper()} {checkpoint['pct']:+.1f}%"
+            body = (f"${checkpoint['price']:.2f}. "
+                    + (f"{verb} prob {prob*100:.0f}%" + (f", ~{exp_days:.0f}d" if exp_days is not None else "")
+                       if prob is not None else "model unavailable"))
+            send_push_via_agstox(title, body)  # best-effort - never blocks/breaks the settle on failure
         elif row["track"] == "amc":
             # AMC's checkpoint is a fixed point in time (the open print) - once we have
             # it and it doesn't qualify, this row is done, not still "watching".
