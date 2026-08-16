@@ -1,0 +1,12 @@
+[Unit]
+Description=Run HuntHarvest Phase 3 analysis backfill weekly
+
+[Timer]
+# Weekly is plenty - this only finalizes events whose 90-day settled window has newly
+# elapsed since the last run (a handful of days' worth each week), and it's a pure local
+# computation (no API calls), so there's no cost pressure to run it more often.
+OnCalendar=weekly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

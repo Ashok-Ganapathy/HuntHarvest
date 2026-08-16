@@ -1,0 +1,13 @@
+[Unit]
+Description=Run HuntHarvest daily watch scan weekday evenings after close
+
+[Timer]
+# 21:30 UTC = 4:30pm ET (EST) / 5:30pm ET (EDT) - server runs UTC with no DST handling,
+# so this is deliberately picked to always land safely after the 4:00pm ET close in
+# both DST states rather than drifting into pre-close territory during EDT. Also gives
+# Finviz's calendar time to reflect same-day AMC reports that just happened.
+OnCalendar=Mon..Fri 21:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

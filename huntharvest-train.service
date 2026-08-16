@@ -1,0 +1,10 @@
+[Unit]
+Description=HuntHarvest model retraining (one-shot)
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/var/www/huntorharvest
+EnvironmentFile=/var/www/huntorharvest/.env
+ExecStart=/var/www/huntorharvest/venv/bin/python3 train_models.py

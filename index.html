@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HuntHarvest</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --border: #2a2e38; --text: #e6e8ec; --muted: #8b92a3;
+    --green: #3ecf8e; --red: #ef5a5a; --amber: #e8b339; --blue: #5b9dd9; --accent: #6c7dee;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  #login { max-width: 340px; margin: 15vh auto; padding: 24px; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; }
+  #login h1 { font-size: 20px; margin: 0 0 16px; }
+  #login input { width: 100%; padding: 10px; margin-bottom: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 14px; }
+  #login button, .btn { width: 100%; padding: 10px; background: var(--accent); border: none; border-radius: 6px; color: white; font-weight: 600; cursor: pointer; font-size: 14px; }
+  #login button:hover, .btn:hover { opacity: 0.9; }
+  #loginError { color: var(--red); font-size: 13px; margin-top: 8px; min-height: 16px; }
+
+  #app { display: none; }
+  .layout { display: flex; min-height: 100vh; }
+  .sidebar { width: 220px; flex-shrink: 0; background: var(--panel); border-right: 1px solid var(--border); padding: 20px 0; }
+  .sidebar-title { font-size: 18px; font-weight: 700; padding: 0 20px 20px; }
+  .nav-item { padding: 10px 20px; color: var(--muted); cursor: pointer; font-size: 14px; font-weight: 600; border-left: 3px solid transparent; }
+  .nav-item:hover { color: var(--text); }
+  .nav-item.active { color: var(--text); border-left-color: var(--accent); background: rgba(108,125,238,0.08); }
+  .content { flex: 1; width: 100%; padding: 20px 24px; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 12px; }
+  header h1 { font-size: 20px; margin: 0; }
+  header .meta { color: var(--muted); font-size: 13px; }
+
+  .controls { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+  .controls select, .controls input { padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); font-size: 13px; }
+  .controls button { padding: 8px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; color: var(--text); cursor: pointer; font-size: 13px; }
+  .controls button.active { background: var(--accent); border-color: var(--accent); }
+
+  .sub { color: var(--muted); font-size: 12px; }
+  .move.drop { color: var(--red); }
+  .move.gain { color: var(--green); }
+
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; margin-right: 4px; white-space: nowrap; }
+  .badge.earnings { background: rgba(91,157,217,0.15); color: var(--blue); }
+  .badge.unknown { background: rgba(139,146,163,0.15); color: var(--muted); }
+  .badge.conf-low { background: rgba(232,179,57,0.15); color: var(--amber); }
+  .badge.conf-medium { background: rgba(91,157,217,0.15); color: var(--blue); }
+  .badge.conf-high { background: rgba(62,207,142,0.15); color: var(--green); }
+  .badge.action-buy { background: rgba(62,207,142,0.2); color: var(--green); }
+  .badge.action-sell { background: rgba(239,90,90,0.2); color: var(--red); }
+  .badge.action-hold, .badge.action-watch { background: rgba(139,146,163,0.2); color: var(--muted); }
+
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; white-space: nowrap; }
+  thead th { position: sticky; top: 0; background: var(--panel); text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; color: var(--muted); font-weight: 600; }
+  thead th:hover { color: var(--text); }
+  thead th .arrow { margin-left: 4px; color: var(--accent); }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  tbody tr.ticker-row { cursor: pointer; }
+  .ticker-cell { font-weight: 700; }
+
+  .history-row { background: var(--bg); }
+  .history-row td { white-space: normal; padding: 12px 16px; }
+  .history-summary { color: var(--accent); font-size: 12px; margin-bottom: 8px; }
+  .hist-line { display: flex; justify-content: space-between; padding: 3px 0; color: var(--muted); font-size: 12px; max-width: 500px; }
+  .hist-line .rev { color: var(--green); } .hist-line .norev { color: var(--red); }
+
+  .panel-box { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  .panel-box h3 { margin: 0 0 10px; font-size: 14px; }
+  .cfg-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; }
+  .cfg-row input { width: 100px; }
+  .account-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+  .account-row .label { color: var(--muted); }
+
+  #loadMore { display: block; margin: 20px auto; }
+  .empty { text-align: center; color: var(--muted); padding: 40px; }
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h1>HuntHarvest</h1>
+  <input type="text" id="username" placeholder="Username" autocomplete="username">
+  <input type="password" id="password" placeholder="Password" autocomplete="current-password">
+  <button onclick="login()">Log in</button>
+  <div id="loginError"></div>
+</div>
+
+<div id="app">
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="sidebar-title">HuntHarvest</div>
+      <div class="nav-item active" id="navDaily" onclick="switchTab('daily')">Daily Watch</div>
+      <div class="nav-item" id="navWatch" onclick="switchTab('watch')">Earnings Watch</div>
+      <div class="nav-item" id="navSystem" onclick="switchTab('system')">System</div>
+    </nav>
+
+    <main class="content">
+      <header>
+        <h1 id="pageTitle">Daily Watch</h1>
+        <div class="meta" id="healthMeta">loading...</div>
+      </header>
+
+      <div id="tab-daily" class="tab-panel active">
+        <div class="sub" id="dailyWatchMeta" style="margin-bottom:12px;">loading...</div>
+
+        <div class="panel-box">
+          <h3>Reporting Tomorrow — Before Open</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Ticker</th><th>Status</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
+                <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
+                <th>Price</th><th>Chg Day</th>
+              </tr></thead>
+              <tbody id="dailyBmoBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <h3>Reported Today — After Close</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Ticker</th><th>Status</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
+                <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
+                <th>Price</th><th>Chg Day</th>
+              </tr></thead>
+              <tbody id="dailyAmcBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-watch" class="tab-panel">
+        <div class="controls">
+          <button id="fAll" class="active" onclick="setFilter(null)">All</button>
+          <button id="fDrop" onclick="setFilter('drop')">Drops</button>
+          <button id="fGain" onclick="setFilter('gain')">Gains</button>
+          <input type="text" id="tickerSearch" placeholder="Ticker..." onkeydown="if(event.key==='Enter')reload()">
+          <button onclick="reload()">Search</button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr id="tableHead"></tr>
+            </thead>
+            <tbody id="eventsBody"></tbody>
+          </table>
+        </div>
+        <button id="loadMore" class="btn" style="max-width:200px;" onclick="loadMore()">Load more</button>
+      </div>
+
+      <div id="tab-system" class="tab-panel">
+        <div class="panel-box">
+          <h3>Account</h3>
+          <div id="accountRows"></div>
+        </div>
+        <div class="panel-box" id="adminPanel" style="display:none;">
+          <h3>Config (admin)</h3>
+          <div id="cfgRows"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+let creds = null;
+let currentDirection = null;
+let offset = 0;
+let eventsLoaded = false; // Earnings Watch (full history) table now loads lazily on
+                           // first visit, not on init - Daily Watch is the default view.
+const LIMIT = 30;
+
+// Grouped so the decision-relevant columns (what/why/what-to-do) sit up front,
+// near Ticker - a 28-column table buries anything placed mid-table or later
+// behind a horizontal scroll the user has to know to reach.
+const COLUMNS = [
+  // identity
+  { key: "ticker", label: "Ticker", sortable: true },
+  { key: "event_date", label: "Date", sortable: true },
+  { key: "direction", label: "Dir", sortable: true },
+  // why this row exists / what to do about it
+  { key: "causal_event_type", label: "Event", sortable: true },
+  { key: "causal_confidence", label: "Source", sortable: true },
+  { key: "confidence", label: "Confidence", sortable: false },
+  { key: "suggested_action", label: "Recom", sortable: false },
+  // the qualifying move + what happened/predicted for it
+  { key: "move_pct", label: "Move %", sortable: true },
+  { key: "bounce_probability", label: "Model", sortable: true },
+  { key: "expected_days_to_revert", label: "Exp. Days", sortable: true },
+  { key: "reverted", label: "Reverted", sortable: true },
+  { key: "shape_category", label: "Shape", sortable: true },
+  { key: "market_cap_at_event", label: "Mkt Cap", sortable: true },
+  { key: "prior_close", label: "Prior Close", sortable: true },
+  { key: "reaction_close", label: "Reaction Close", sortable: true },
+  // current market data (live_quotes)
+  { key: "price", label: "Price", sortable: true },
+  { key: "day_change_pct", label: "Chg Day", sortable: true },
+  { key: "week_change_pct", label: "Chg Week", sortable: true },
+  { key: "month_change_pct", label: "Chg Month", sortable: true },
+  { key: "rel_volume", label: "Rel Vol", sortable: true },
+  { key: "sector", label: "Sector", sortable: true },
+  { key: "market_relative_return", label: "Mkt-Rel", sortable: true },
+  { key: "sector_relative_return", label: "Sector-Rel", sortable: true },
+  // technical detail - most granular, least immediately decision-critical
+  { key: "rsi_14", label: "RSI(14)", sortable: true },
+  { key: "atr_14", label: "ATR(14)", sortable: true },
+  { key: "price_vs_sma50", label: "vs SMA50", sortable: true },
+  { key: "price_vs_sma200", label: "vs SMA200", sortable: true },
+  { key: "mom_3m", label: "3M Mom", sortable: true },
+  { key: "volume_ratio", label: "Vol Ratio", sortable: true },
+];
+// Loads pre-sorted (most recent event first) with a visible arrow, not waiting for
+// the user's first click - matches how sortable tables should behave by default.
+let sortBy = "event_date";
+let sortDir = "desc";
+
+function authHeader() {
+  return "Basic " + btoa(creds.user + ":" + creds.pass);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { ...(opts.headers || {}), "Authorization": authHeader() } });
+  if (res.status === 401) throw new Error("unauthorized");
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+async function login() {
+  const user = document.getElementById("username").value.trim();
+  const pass = document.getElementById("password").value;
+  const errEl = document.getElementById("loginError");
+  errEl.textContent = "";
+  if (!user || !pass) { errEl.textContent = "Enter username and password"; return; }
+  creds = { user, pass };
+  try {
+    const me = await api("/api/me");
+    sessionStorage.setItem("hh_user", user);
+    sessionStorage.setItem("hh_pass", pass);
+    document.getElementById("login").style.display = "none";
+    document.getElementById("app").style.display = "block";
+    initDashboard(me);
+  } catch (e) {
+    creds = null;
+    errEl.textContent = "Invalid credentials";
+  }
+}
+
+function tryAutoLogin() {
+  const user = sessionStorage.getItem("hh_user");
+  const pass = sessionStorage.getItem("hh_pass");
+  if (user && pass) {
+    document.getElementById("username").value = user;
+    document.getElementById("password").value = pass;
+    login();
+  }
+}
+
+async function initDashboard(me) {
+  renderHealth();
+  renderAccount(me);
+  if (me.role === "admin") {
+    const cfg = await api("/api/config");
+    renderAdminPanel(cfg);
+    document.getElementById("adminPanel").style.display = "block";
+  }
+  loadDailyWatch();
+}
+
+function switchTab(tab) {
+  document.querySelectorAll(".tab-panel").forEach(el => el.classList.remove("active"));
+  document.querySelectorAll(".nav-item").forEach(el => el.classList.remove("active"));
+  document.getElementById(`tab-${tab}`).classList.add("active");
+  document.getElementById(`nav${tab.charAt(0).toUpperCase() + tab.slice(1)}`).classList.add("active");
+  const titles = { daily: "Daily Watch", watch: "Earnings Watch", system: "System" };
+  document.getElementById("pageTitle").textContent = titles[tab] || tab;
+  if (tab === "watch" && !eventsLoaded) {
+    eventsLoaded = true;
+    renderTableHead();
+    reload();
+  }
+}
+
+const DAILY_COLSPAN = 16;
+const STATUS_LABEL = { watching: "Watching", settled: "Settled", dropped: "Dropped (no qualifying move)" };
+
+function renderDailyRow(tbody, r) {
+  const num = (v, digits = 2) => v != null ? v.toFixed(digits) : "n/a";
+  const pct = (v, digits = 1) => v != null ? (v > 0 ? "+" : "") + v.toFixed(digits) + "%" : "n/a";
+  const usd = (v) => v != null ? "$" + v.toFixed(2) : "n/a";
+  const tr = document.createElement("tr");
+  tr.className = "ticker-row";
+  tr.onclick = () => toggleTicks(r.id);
+  const statusClass = r.status === "settled" ? "action-buy" : r.status === "dropped" ? "action-watch" : "conf-medium";
+  const confirmedText = r.status === "settled" && r.predicted_probability != null
+    ? `${r.predicted_direction === "drop" ? "Bounce" : "Fade"} ${(r.predicted_probability * 100).toFixed(0)}%`
+      + (r.predicted_expected_days != null ? ` · ${r.predicted_expected_days.toFixed(0)}d` : "")
+      + ` · checkpoint ${pct(r.checkpoint_pct)}`
+    : r.status === "settled" ? `checkpoint ${pct(r.checkpoint_pct)} (model unavailable)`
+    : "—";
+  tr.innerHTML = `
+    <td class="ticker-cell">${r.ticker}</td>
+    <td><span class="badge ${statusClass}">${STATUS_LABEL[r.status] || r.status}</span></td>
+    <td class="sub">${confirmedText}</td>
+    <td class="sub">${r.sector || "Unknown"}</td>
+    <td>${r.market_cap_at_scan ? "$" + (r.market_cap_at_scan / 1e9).toFixed(2) + "B" : "n/a"}</td>
+    <td>${usd(r.prior_close)}</td>
+    <td>${num(r.rsi_14, 0)}</td>
+    <td>${num(r.atr_14)}</td>
+    <td>${pct(r.price_vs_sma50)}</td>
+    <td>${pct(r.price_vs_sma200)}</td>
+    <td>${pct(r.mom_3m)}</td>
+    <td>${num(r.volume_ratio)}x</td>
+    <td>${pct(r.market_relative_return)}</td>
+    <td>${pct(r.sector_relative_return)}</td>
+    <td>${usd(r.price)}</td>
+    <td class="${r.day_change_pct == null ? '' : (r.day_change_pct >= 0 ? 'move gain' : 'move drop')}">${pct(r.day_change_pct)}</td>
+  `;
+  tbody.appendChild(tr);
+
+  const tickTr = document.createElement("tr");
+  tickTr.className = "history-row";
+  tickTr.id = `ticks_${r.id}`;
+  tickTr.style.display = "none";
+  tickTr.innerHTML = `<td colspan="${DAILY_COLSPAN}"><div id="ticksBody_${r.id}" class="sub">Click to load...</div></td>`;
+  tbody.appendChild(tickTr);
+}
+
+function renderTickLines(ticks) {
+  // Raw data, not a chart (locked design decision, spec §6 Stage 2) - every point,
+  // most recent first.
+  return ticks.slice().reverse().map(t =>
+    `<div class="hist-line"><span>${t.time_et} ET · ${t.session}</span><span class="${t.pct_from_baseline >= 0 ? 'rev' : 'norev'}">$${t.price != null ? t.price.toFixed(2) : 'n/a'} (${t.pct_from_baseline != null ? (t.pct_from_baseline > 0 ? '+' : '') + t.pct_from_baseline.toFixed(2) + '%' : 'n/a'})</span></div>`
+  ).join("");
+}
+
+function togglePastEvent(elId) {
+  const el = document.getElementById(elId);
+  el.style.display = el.style.display === "none" ? "block" : "none";
+}
+
+async function toggleTicks(watchId) {
+  const row = document.getElementById(`ticks_${watchId}`);
+  const isHidden = row.style.display === "none";
+  row.style.display = isHidden ? "table-row" : "none";
+  if (!isHidden) return;
+  const body = document.getElementById(`ticksBody_${watchId}`);
+  try {
+    const data = await api(`/api/daily-watch/${watchId}/history-compare`);
+    let html = "";
+    if (!data.today_ticks.length) {
+      html += `<div class="history-summary">Today — no reaction data yet</div><div class="sub" style="margin-bottom:10px;">Polling runs during the track-appropriate market window (premarket/open for BMO, after-hours through next open for AMC).</div>`;
+    } else {
+      html += `<div class="history-summary">Today — ${data.today_ticks.length} data points · ${data.status}</div>${renderTickLines(data.today_ticks)}`;
+    }
+
+    html += `<div class="history-summary" style="margin-top:14px;">This ticker's own past qualifying events${data.history.length ? ` (${data.history.length})` : ""}</div>`;
+    if (!data.history.length) {
+      html += `<div class="sub">${data.history_note}</div>`;
+    } else {
+      data.history.forEach((ev, i) => {
+        const elId = `pastEvent_${watchId}_${i}`;
+        html += `
+          <div class="hist-line" style="cursor:pointer;" onclick="togglePastEvent('${elId}')">
+            <span>${ev.event_date} · ${ev.direction} · ${ev.move_pct > 0 ? "+" : ""}${ev.move_pct.toFixed(1)}% · ${ev.ticks.length} pts ▸</span>
+            <span class="${ev.reverted ? 'rev' : 'norev'}">${ev.reverted ? "reverted (" + ev.days_to_revert + "d)" : "not reverted"}</span>
+          </div>
+          <div id="${elId}" style="display:none;padding-left:12px;">${ev.ticks.length ? renderTickLines(ev.ticks) : "<div class='sub'>No minute data available for this date.</div>"}</div>
+        `;
+      });
+    }
+    body.innerHTML = html;
+  } catch (e) {
+    body.textContent = `Failed to load: ${e.message}`;
+  }
+}
+
+async function loadDailyWatch() {
+  const metaEl = document.getElementById("dailyWatchMeta");
+  const bmoBody = document.getElementById("dailyBmoBody");
+  const amcBody = document.getElementById("dailyAmcBody");
+  try {
+    const data = await api("/api/daily-watch");
+    if (!data.watch_date) {
+      metaEl.textContent = "No watchlist yet — runs weekday evenings after close.";
+      bmoBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">Nothing to watch yet.</td></tr>`;
+      amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">Nothing to watch yet.</td></tr>`;
+      return;
+    }
+    metaEl.textContent = `Watching for ${data.watch_date}'s open — ${data.bmo.length} before-open, ${data.amc.length} after-close`;
+    bmoBody.innerHTML = "";
+    amcBody.innerHTML = "";
+    if (data.bmo.length === 0) bmoBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reporting before tomorrow's open.</td></tr>`;
+    else data.bmo.forEach(r => renderDailyRow(bmoBody, r));
+    if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close today.</td></tr>`;
+    else data.amc.forEach(r => renderDailyRow(amcBody, r));
+  } catch (e) {
+    metaEl.textContent = `Failed to load: ${e.message}`;
+  }
+}
+
+function renderAccount(me) {
+  document.getElementById("accountRows").innerHTML = `
+    <div class="account-row"><span class="label">Username</span><span>${me.username}</span></div>
+    <div class="account-row"><span class="label">Role</span><span>${me.role}</span></div>
+  `;
+}
+
+function renderTableHead() {
+  const tr = document.getElementById("tableHead");
+  tr.innerHTML = COLUMNS.map(col => {
+    const isActive = col.sortable && sortBy === col.key;
+    const arrow = isActive ? `<span class="arrow">${sortDir === "asc" ? "▲" : "▼"}</span>` : "";
+    return `<th ${col.sortable ? `onclick="setSort('${col.key}')"` : ""}>${col.label}${arrow}</th>`;
+  }).join("");
+}
+
+function setSort(key) {
+  if (sortBy === key) {
+    sortDir = sortDir === "asc" ? "desc" : "asc";
+  } else {
+    sortBy = key;
+    sortDir = "desc";
+  }
+  renderTableHead();
+  reload();
+}
+
+async function renderHealth() {
+  try {
+    const h = await api("/api/health");
+    document.getElementById("healthMeta").textContent =
+      `${h.event_count.toLocaleString()} events · latest ${h.latest_event_date || "n/a"}`;
+  } catch (e) { /* non-fatal */ }
+}
+
+function renderAdminPanel(cfg) {
+  // Called only when /api/me confirms role === "admin" - visibility here is a real
+  // role check, not just an optimistic show with a 403-on-save fallback.
+  const rows = document.getElementById("cfgRows");
+  rows.innerHTML = "";
+  for (const [key, info] of Object.entries(cfg)) {
+    const row = document.createElement("div");
+    row.className = "cfg-row";
+    row.innerHTML = `
+      <span>${info.description || key}</span>
+      <span><input type="text" id="cfg_${key}" value="${info.value}"> <button class="btn" style="width:auto;display:inline-block;padding:6px 10px;" onclick="saveConfig('${key}')">Save</button></span>
+    `;
+    rows.appendChild(row);
+  }
+}
+
+async function saveConfig(key) {
+  const val = document.getElementById(`cfg_${key}`).value;
+  try {
+    await api(`/api/config/${key}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ value: val }) });
+    alert(`Updated ${key} = ${val}`);
+  } catch (e) {
+    alert("Save failed — you may not have admin access, or the value was invalid.");
+  }
+}
+
+function setFilter(dir) {
+  currentDirection = dir;
+  document.getElementById("fAll").classList.toggle("active", dir === null);
+  document.getElementById("fDrop").classList.toggle("active", dir === "drop");
+  document.getElementById("fGain").classList.toggle("active", dir === "gain");
+  reload();
+}
+
+function reload() {
+  offset = 0;
+  document.getElementById("eventsBody").innerHTML = "";
+  loadMore();
+}
+
+async function loadMore() {
+  const ticker = document.getElementById("tickerSearch").value.trim().toUpperCase();
+  const params = new URLSearchParams({ limit: LIMIT, offset, sort_by: sortBy, sort_dir: sortDir });
+  if (currentDirection) params.set("direction", currentDirection);
+  if (ticker) params.set("ticker", ticker);
+
+  const btn = document.getElementById("loadMore");
+  btn.textContent = "Loading...";
+  try {
+    const data = await api(`/api/events?${params}`);
+    const tbody = document.getElementById("eventsBody");
+    if (offset === 0 && data.events.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="empty">No events match this filter.</td></tr>`;
+    }
+    data.events.forEach(ev => renderEventRow(tbody, ev));
+    offset += data.events.length;
+    btn.style.display = data.events.length < LIMIT ? "none" : "block";
+  } catch (e) {
+    document.getElementById("eventsBody").innerHTML =
+      `<tr><td colspan="${COLUMNS.length}" class="empty">Failed to load: ${e.message}</td></tr>`;
+  }
+  btn.textContent = "Load more";
+}
+
+function renderEventRow(tbody, ev) {
+  const moveSign = ev.move_pct > 0 ? "+" : "";
+  const confClass = `conf-${ev.ticker_case_history.confidence}`;
+  const actionClass = ev.suggested_action.toLowerCase().startsWith("buy") ? "action-buy"
+    : ev.suggested_action.toLowerCase().startsWith("sell") ? "action-sell"
+    : ev.suggested_action.toLowerCase().startsWith("hold") ? "action-hold" : "action-watch";
+  const rowId = `row_${ev.id}`;
+
+  const tr = document.createElement("tr");
+  tr.className = "ticker-row";
+  tr.id = rowId;
+  tr.onclick = () => toggleHistory(ev.id);
+  const pct = (v, digits = 1) => v != null ? v.toFixed(digits) + "%" : "n/a";
+  const num = (v, digits = 2) => v != null ? v.toFixed(digits) : "n/a";
+  const usd = (v) => v != null ? "$" + v.toFixed(2) : "n/a";
+  const chgCell = (v) => `<td class="${v == null ? '' : (v >= 0 ? 'move gain' : 'move drop')}">${v != null ? (v > 0 ? "+" : "") + v.toFixed(1) + "%" : "n/a"}</td>`;
+
+  tr.innerHTML = `
+    <td class="ticker-cell">${ev.ticker}</td>
+    <td class="sub">${ev.event_date}</td>
+    <td class="move ${ev.direction}">${ev.direction === "drop" ? "Drop" : "Gain"}</td>
+    <td><span class="badge ${ev.causal_event_type}">${ev.causal_event_type}${ev.causal_confidence === "approximate" ? " (approx.)" : ""}</span></td>
+    <td class="sub">${ev.causal_confidence === "approximate" ? "SEC filing (±10d)" : ev.causal_confidence === "confirmed" ? "Confirmed calendar" : "—"}</td>
+    <td><span class="badge ${confClass}">${ev.ticker_case_history.confidence} (n=${ev.ticker_case_history.sample_size})</span></td>
+    <td><span class="badge ${actionClass}">${ev.suggested_action}</span></td>
+    <td class="move ${ev.direction}">${moveSign}${ev.move_pct.toFixed(1)}%</td>
+    <td>${ev.model_bounce_or_fade_probability != null ? (ev.model_bounce_or_fade_probability * 100).toFixed(0) + "%" : "n/a"}</td>
+    <td>${num(ev.model_expected_days, 0)}</td>
+    <td>${ev.reverted ? "Yes (" + ev.days_to_revert + "d)" : "Not yet"}</td>
+    <td class="sub">${ev.shape_category ? ev.shape_category.replace(/_/g, " ") : "—"}</td>
+    <td>${ev.market_cap_at_event ? "$" + (ev.market_cap_at_event / 1e9).toFixed(2) + "B" : "n/a"}</td>
+    <td>${usd(ev.prior_close)}</td>
+    <td>${usd(ev.reaction_close)}</td>
+    <td>${usd(ev.price)}</td>
+    ${chgCell(ev.day_change_pct)}
+    ${chgCell(ev.week_change_pct)}
+    ${chgCell(ev.month_change_pct)}
+    <td>${num(ev.rel_volume)}x</td>
+    <td class="sub">${ev.sector || "Unknown"}</td>
+    <td>${pct(ev.market_relative_return)}</td>
+    <td>${pct(ev.sector_relative_return)}</td>
+    <td>${num(ev.rsi_14, 0)}</td>
+    <td>${num(ev.atr_14)}</td>
+    <td>${pct(ev.price_vs_sma50)}</td>
+    <td>${pct(ev.price_vs_sma200)}</td>
+    <td>${pct(ev.mom_3m)}</td>
+    <td>${num(ev.volume_ratio)}x</td>
+  `;
+  tbody.appendChild(tr);
+
+  const histTr = document.createElement("tr");
+  histTr.className = "history-row";
+  histTr.id = `hist_${ev.id}`;
+  histTr.style.display = "none";
+  histTr.innerHTML = `
+    <td colspan="${COLUMNS.length}">
+      <div class="history-summary">${ev.ticker_case_history.summary}</div>
+      ${ev.ticker_case_history.shape_distribution && Object.keys(ev.ticker_case_history.shape_distribution).length
+        ? `<div class="sub" style="margin-bottom:8px;">Shape mix: ${Object.entries(ev.ticker_case_history.shape_distribution).map(([s, n]) => `${n} ${s.replace(/_/g, " ")}`).join(" · ")}</div>` : ""}
+      ${ev.suggested_note ? `<div class="sub" style="margin-bottom:8px;">${ev.suggested_note}</div>` : ""}
+      ${(ev.ticker_case_history.history || []).map(h => `
+        <div class="hist-line">
+          <span>${h.event_date} · ${h.direction} · ${h.move_pct > 0 ? "+" : ""}${h.move_pct.toFixed(1)}%${h.shape_category ? " · " + h.shape_category.replace(/_/g, " ") : ""}</span>
+          <span class="${h.reverted ? 'rev' : 'norev'}">${h.reverted ? "reverted (" + h.days_to_revert + "d)" : "not reverted"}</span>
+        </div>
+      `).join("") || "<div class='sub'>No prior events for this ticker.</div>"}
+    </td>
+  `;
+  tbody.appendChild(histTr);
+}
+
+function toggleHistory(eventId) {
+  const el = document.getElementById(`hist_${eventId}`);
+  el.style.display = el.style.display === "none" ? "table-row" : "none";
+}
+
+document.getElementById("password").addEventListener("keydown", e => { if (e.key === "Enter") login(); });
+tryAutoLogin();
+</script>
+</body>
+</html>

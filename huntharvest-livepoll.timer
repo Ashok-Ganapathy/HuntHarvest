@@ -1,0 +1,13 @@
+[Unit]
+Description=Run HuntHarvest live reaction poll every 5 minutes
+
+[Timer]
+# Every 5 min, all day - the script itself checks whether anything is actually in an
+# active poll window and no-ops fast otherwise (see live_reaction_poll.py), so there's
+# no need for day/time-window logic in the timer itself.
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

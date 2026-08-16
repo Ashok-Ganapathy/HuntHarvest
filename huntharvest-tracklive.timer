@@ -1,0 +1,11 @@
+[Unit]
+Description=Run HuntHarvest live-event forward-tracker daily after close
+
+[Timer]
+# 22:00 UTC - after both the daily-watch scan (21:30) and safely after regular close in
+# both DST states, so the day's new daily bar is available before this runs.
+OnCalendar=Mon..Fri 22:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
