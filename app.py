@@ -27,6 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from live_reaction_poll import fetch_minute_bars, session_for, ET
+from daily_watch_scan import fetch_finviz_earnings_calendar, earnings_date, earnings_timing, next_trading_day
 
 DB_CONF = dict(host="localhost", user="huntharvest_app",
                password=os.getenv("DB_PASS", "aFLzUDDru0Spair4MduIQjeg"),
@@ -294,19 +295,75 @@ def daily_watch(user=Depends(get_user)):
                 "live_session": r["live_session"],
             }
             out["bmo" if r["track"] == "bmo" else "amc"].append(item)
+        # Preview buckets (tonight's AMC, tomorrow's BMO/AMC) moved to their own
+        # endpoint, /api/calendar-preview (2026-08-17) - full-column data, not just a
+        # ticker list, polled on a slower interval since it does a fresh Finviz fetch.
+        return out
+    finally:
+        conn.close()
 
-        # Preview (added 2026-08-16): tickers reporting the evening OF watch_date -
-        # their real reaction is the day after, so they're not an active tracking
-        # candidate yet (that starts with the following evening's own scan run).
-        # Informational only, no baseline features - today's close isn't their real
-        # baseline, so nothing to compute yet.
-        cur.execute("""
-            SELECT ticker FROM upcoming_earnings
-            WHERE report_date=%s AND report_time='amc'
-              AND ticker NOT IN (SELECT ticker FROM daily_watch WHERE watch_date=%s)
-            ORDER BY ticker
-        """, (latest, latest))
-        out["preview_amc_tomorrow_evening"] = [r["ticker"] for r in cur.fetchall()]
+
+def _preview_row(ticker, tinfo, lq):
+    """Same shape as a real daily_watch row (renderDailyRow on the frontend is shared
+    across both), but with baseline-specific fields left None - those aren't computed
+    until the ticker becomes a real tracked candidate at its proper scan time. Cheap
+    fields (sector, live price/day-change) come from already-cached tables, no new
+    Polygon/Finviz per-ticker calls."""
+    mcap = (tinfo["shares_outstanding"] * float(lq["price"])) if tinfo.get("shares_outstanding") and lq and lq.get("price") else None
+    return {
+        "id": None, "ticker": ticker, "status": "preview",
+        "prior_close": None, "sector": tinfo.get("sector"),
+        "market_cap_at_scan": mcap,
+        "rsi_14": None, "atr_14": None, "price_vs_sma50": None, "price_vs_sma200": None,
+        "mom_3m": None, "volume_ratio": None, "market_relative_return": None, "sector_relative_return": None,
+        "price": float(lq["price"]) if lq and lq.get("price") is not None else None,
+        "day_change_pct": float(lq["day_change_pct"]) if lq and lq.get("day_change_pct") is not None else None,
+        "checkpoint_price": None, "checkpoint_pct": None, "checkpoint_locked_at": None,
+        "predicted_probability": None, "predicted_expected_days": None, "predicted_direction": None,
+        "live_price": None, "live_pct": None, "live_ts": None, "live_session": None,
+    }
+
+
+@app.get("/api/calendar-preview")
+def calendar_preview(user=Depends(get_user)):
+    """Deliverable extension (2026-08-17, Ashok's request) - full-column preview (not
+    just a ticker list) for tonight's AMC reporters plus tomorrow's BMO and AMC
+    reporters, ahead of when they'd otherwise first appear as real tracked candidates.
+    Fetches Finviz fresh each call (same technique as daily_watch_scan.py) - kept as
+    its own endpoint, polled on a slower interval than /api/daily-watch, since a bulk
+    Finviz export is heavier than the plain DB reads the 30s poll does."""
+    conn = db()
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT ticker, sector, shares_outstanding FROM tickers")
+        tracked = {r["ticker"]: r for r in cur.fetchall()}
+        cur.execute("SELECT ticker, price, day_change_pct FROM live_quotes")
+        quotes = {r["ticker"]: r for r in cur.fetchall()}
+
+        today = datetime.date.today()
+        tomorrow = next_trading_day(today)
+
+        fdf = fetch_finviz_earnings_calendar()
+        buckets = {"today_amc": [], "tomorrow_bmo": [], "tomorrow_amc": []}
+        for _, row in fdf.iterrows():
+            ticker = row.get("Ticker")
+            if not ticker or ticker not in tracked:
+                continue
+            raw = row.get("Earnings Date")
+            ed = earnings_date(raw)
+            timing = earnings_timing(raw)
+            if ed is None or timing is None:
+                continue
+            if ed == today and timing == 'a':
+                buckets["today_amc"].append(ticker)
+            elif ed == tomorrow and timing == 'b':
+                buckets["tomorrow_bmo"].append(ticker)
+            elif ed == tomorrow and timing == 'a':
+                buckets["tomorrow_amc"].append(ticker)
+
+        out = {"today": str(today), "tomorrow": str(tomorrow)}
+        for key, tickers in buckets.items():
+            out[key] = [_preview_row(t, tracked[t], quotes.get(t)) for t in sorted(tickers)]
         return out
     finally:
         conn.close()

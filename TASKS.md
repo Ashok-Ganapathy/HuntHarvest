@@ -1,5 +1,20 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Calendar preview upgraded to full data columns + tomorrow BMO/AMC added — 2026-08-17
+Ashok's request: replace the plain ticker-name list (tonight's AMC reporters) with the
+same full column table as the real tracked rows, and add previews for tomorrow's BMO and
+AMC reporters too (not just tonight's AMC). New `/api/calendar-preview` endpoint - fresh
+Finviz fetch each call (~8s, a fresh bulk export, correctly kept OFF the 30s poll and on
+its own 5-min interval instead), buckets into today_amc/tomorrow_bmo/tomorrow_amc,
+returns rows in the exact same shape as real `daily_watch` rows so the frontend reuses
+`renderDailyRow` unchanged. Baseline-specific fields (RSI/ATR/SMA/etc.) are honestly left
+null/"n/a" for preview rows - that data genuinely doesn't exist until the real scan
+captures it later, not faked. Cheap fields (sector, market cap, live price/day-change)
+come from already-cached `tickers`/`live_quotes` tables, no extra per-ticker API calls.
+Preview rows aren't clickable (no `watch_id`, nothing to expand). Live-verified in the
+browser: FN/XP/YALA (tonight) and AS/BIDU/+more (tomorrow) all rendering correctly with
+real sector/market-cap data and a "Preview" status badge.
+
 ## 🟢 Real bug: rows stuck at 'watching' forever once poll window closed — found+fixed 2026-08-17
 Ashok asked for a routine status re-check ~2 hours after HTHT/DRUG/EMAT started tracking.
 Found live data hadn't updated since 14:13 UTC despite the livepoll timer firing cleanly

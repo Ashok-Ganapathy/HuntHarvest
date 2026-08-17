@@ -138,9 +138,51 @@
         </div>
 
         <div class="panel-box">
-          <h3 id="previewHeading">Reporting Tomorrow Evening — After Close</h3>
-          <div id="previewSub" class="sub" style="margin-bottom:8px;">Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.</div>
-          <div id="previewAmcBody" class="sub"></div>
+          <h3 id="previewTodayAmcHeading">Reporting Today Evening — After Close (Preview)</h3>
+          <div class="sub" style="margin-bottom:8px;">Real reaction is tomorrow morning — tracking starts with tonight's scan. No baseline features yet, that's captured then.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Ticker</th><th>Status</th><th>Live</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
+                <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
+                <th>Price</th><th>Chg Day</th>
+              </tr></thead>
+              <tbody id="previewTodayAmcBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <h3>Reporting Tomorrow — Before Open (Preview)</h3>
+          <div class="sub" style="margin-bottom:8px;">Early look — these become real tracked rows above once tonight's evening scan runs and captures their baseline.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Ticker</th><th>Status</th><th>Live</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
+                <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
+                <th>Price</th><th>Chg Day</th>
+              </tr></thead>
+              <tbody id="previewTomorrowBmoBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <h3>Reporting Tomorrow — After Close (Preview)</h3>
+          <div class="sub" style="margin-bottom:8px;">Real reaction is the day after tomorrow — earliest possible look, tracking starts tomorrow evening.</div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr>
+                <th>Ticker</th><th>Status</th><th>Live</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
+                <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
+                <th>Price</th><th>Chg Day</th>
+              </tr></thead>
+              <tbody id="previewTomorrowAmcBody"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -284,6 +326,8 @@ async function initDashboard(me) {
   // from page-load with no refresh at all. Poll every 30s so live price/status/
   // checkpoint state actually update while the tab is open, not just on manual reload.
   setInterval(loadDailyWatch, 30000);
+  loadCalendarPreview();
+  setInterval(loadCalendarPreview, 300000); // 5 min - heavier (fresh Finviz fetch), no need for 30s
 }
 
 function switchTab(tab) {
@@ -301,16 +345,20 @@ function switchTab(tab) {
 }
 
 const DAILY_COLSPAN = 17;
-const STATUS_LABEL = { watching: "Watching", settled: "Settled", dropped: "Dropped (no qualifying move)" };
+const STATUS_LABEL = { watching: "Watching", settled: "Settled", dropped: "Dropped (no qualifying move)", preview: "Preview" };
 
 function renderDailyRow(tbody, r) {
   const num = (v, digits = 2) => v != null ? v.toFixed(digits) : "n/a";
   const pct = (v, digits = 1) => v != null ? (v > 0 ? "+" : "") + v.toFixed(digits) + "%" : "n/a";
   const usd = (v) => v != null ? "$" + v.toFixed(2) : "n/a";
   const tr = document.createElement("tr");
-  tr.className = "ticker-row";
-  tr.onclick = () => toggleTicks(r.id);
-  const statusClass = r.status === "settled" ? "action-buy" : r.status === "dropped" ? "action-watch" : "conf-medium";
+  // Preview rows (id == null) have no watch_id, no ticks to show - not clickable,
+  // matching the fact they aren't a real tracked candidate yet.
+  if (r.id != null) {
+    tr.className = "ticker-row";
+    tr.onclick = () => toggleTicks(r.id);
+  }
+  const statusClass = r.status === "settled" ? "action-buy" : r.status === "dropped" ? "action-watch" : r.status === "preview" ? "badge" : "conf-medium";
   const confirmedText = r.status === "settled" && r.predicted_probability != null
     ? `${r.predicted_direction === "drop" ? "Bounce" : "Fade"} ${(r.predicted_probability * 100).toFixed(0)}%`
       + (r.predicted_expected_days != null ? ` · ${r.predicted_expected_days.toFixed(0)}d` : "")
@@ -423,19 +471,34 @@ async function loadDailyWatch() {
     else data.bmo.forEach(r => renderDailyRow(bmoBody, r));
     if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close ${isToday ? "yesterday" : "today"}.</td></tr>`;
     else data.amc.forEach(r => renderDailyRow(amcBody, r));
-
-    // Real gap found live 2026-08-17 (Ashok caught it): this preview refers to
-    // watch_date's evening - once watch_date arrives (isToday), "tomorrow evening" is
-    // just wrong, it's tonight. Same fix pattern as the other two headings above.
-    document.getElementById("previewHeading").textContent = isToday ? "Reporting Today Evening — After Close" : "Reporting Tomorrow Evening — After Close";
-    document.getElementById("previewSub").textContent = isToday
-      ? "Preview only — real reaction is tomorrow morning, tracking starts with tonight's scan."
-      : "Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.";
-    const previewEl = document.getElementById("previewAmcBody");
-    const preview = data.preview_amc_tomorrow_evening || [];
-    previewEl.textContent = preview.length ? preview.join(", ") : (isToday ? "None reporting this evening." : "None reporting tomorrow evening.");
   } catch (e) {
     metaEl.textContent = `Failed to load: ${e.message}`;
+  }
+}
+
+async function loadCalendarPreview() {
+  // Separate from loadDailyWatch() / the 30s poll - does a fresh Finviz bulk export
+  // server-side each call, heavier than the plain DB reads the main poll does, so
+  // this runs on its own slower interval (added 2026-08-17, Ashok's request: full
+  // data columns for these previews too, not just a ticker-name list).
+  const sections = [
+    ["today_amc", "previewTodayAmcBody", "None reporting this evening."],
+    ["tomorrow_bmo", "previewTomorrowBmoBody", "None reporting tomorrow before open."],
+    ["tomorrow_amc", "previewTomorrowAmcBody", "None reporting tomorrow after close."],
+  ];
+  try {
+    const data = await api("/api/calendar-preview");
+    sections.forEach(([key, bodyId, emptyMsg]) => {
+      const body = document.getElementById(bodyId);
+      const rows = data[key] || [];
+      body.innerHTML = "";
+      if (rows.length === 0) body.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">${emptyMsg}</td></tr>`;
+      else rows.forEach(r => renderDailyRow(body, r));
+    });
+  } catch (e) {
+    sections.forEach(([, bodyId]) => {
+      document.getElementById(bodyId).innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">Failed to load: ${e.message}</td></tr>`;
+    });
   }
 }
 
