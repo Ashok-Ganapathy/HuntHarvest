@@ -251,6 +251,7 @@ def poll_row(conn, row, thresholds, now_et):
 
 def main():
     conn = pymysql.connect(**DB_CONF)
+    cur = conn.cursor()
     now_et = datetime.datetime.now(tz=ET)
     today = now_et.date()
     thresholds = load_config(conn)
@@ -264,6 +265,19 @@ def main():
             poll_row(conn, row, thresholds, now_et)
         except Exception as e:
             log.error(f"{row['ticker']} poll FAILED: {e}")
+
+    # Real bug found+fixed 2026-08-17 (live, during Monday's real market hours): rows
+    # whose window closes WITHOUT ever qualifying were stuck at 'watching' forever -
+    # window_elapsed() only ever ran inside poll_row(), which only runs for rows still
+    # inside in_poll_window(). Once the window closes, a row drops out of `active` and
+    # never gets checked again. Close that gap here, independent of poll_row/active.
+    for row in candidates:
+        if row["id"] in {a["id"] for a in active}:
+            continue  # already handled above this run
+        if window_elapsed(row, now_et):
+            cur.execute("UPDATE daily_watch SET status='dropped' WHERE id=%s", (row["id"],))
+            conn.commit()
+            log.info(f"{row['ticker']} ({row['track'].upper()}): poll window elapsed, no qualifying move - dropped")
 
     conn.close()
 

@@ -1,5 +1,21 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Real bug: rows stuck at 'watching' forever once poll window closed — found+fixed 2026-08-17
+Ashok asked for a routine status re-check ~2 hours after HTHT/DRUG/EMAT started tracking.
+Found live data hadn't updated since 14:13 UTC despite the livepoll timer firing cleanly
+every 5 min with zero errors - `in_poll_window()` was correctly returning False (60-min
+post-open window had legitimately closed), which is right, but exposed a real logic gap:
+`window_elapsed()` (the code that marks a row 'dropped' when its window closes without a
+qualifying move) only ever ran *inside* `poll_row()`, which only runs for rows still
+inside `in_poll_window()`. Once a row's window closes, it drops out of `active` and
+`poll_row()` never runs for it again - so a ticker that never crosses threshold stayed
+stuck at 'watching' forever instead of resolving to 'dropped'. Fixed: `main()` now also
+checks every "touches today" candidate NOT already handled this run for an elapsed
+window, independent of the active-poll filter. Verified live: HTHT/DRUG/EMAT all
+correctly transitioned to 'dropped' on the next run (none crossed ±10% today - HTHT
+topped out under threshold, DRUG and EMAT never moved meaningfully) - confirmed via
+both the manual run's log output and the live API/frontend.
+
 ## 🟢 Morning catch-up scan + baseline-contamination bug — found, fixed, verified 2026-08-17
 Ashok noticed EMAT/DRUG missing from today's watchlist despite genuinely reporting BMO
 today - cross-checked against AGSTOX's own independent earnings-calendar parse (same
