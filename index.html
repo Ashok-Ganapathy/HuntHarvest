@@ -108,11 +108,11 @@
         <div class="sub" id="dailyWatchMeta" style="margin-bottom:12px;">loading...</div>
 
         <div class="panel-box">
-          <h3>Reporting Tomorrow — Before Open</h3>
+          <h3 id="bmoHeading">Reporting Tomorrow — Before Open</h3>
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Ticker</th><th>Status</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>Ticker</th><th>Status</th><th>Live</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
                 <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
                 <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
                 <th>Price</th><th>Chg Day</th>
@@ -123,11 +123,11 @@
         </div>
 
         <div class="panel-box">
-          <h3>Reported Today — After Close</h3>
+          <h3 id="amcHeading">Reported Today — After Close</h3>
           <div class="table-wrap">
             <table>
               <thead><tr>
-                <th>Ticker</th><th>Status</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
+                <th>Ticker</th><th>Status</th><th>Live</th><th>Confirmed Read</th><th>Sector</th><th>Mkt Cap</th><th>Close</th>
                 <th>RSI(14)</th><th>ATR(14)</th><th>vs SMA50</th><th>vs SMA200</th>
                 <th>3M Mom</th><th>Vol Ratio</th><th>Mkt-Rel</th><th>Sector-Rel</th>
                 <th>Price</th><th>Chg Day</th>
@@ -280,6 +280,10 @@ async function initDashboard(me) {
     document.getElementById("adminPanel").style.display = "block";
   }
   loadDailyWatch();
+  // Real gap found 2026-08-17 (live during market hours): this was a static snapshot
+  // from page-load with no refresh at all. Poll every 30s so live price/status/
+  // checkpoint state actually update while the tab is open, not just on manual reload.
+  setInterval(loadDailyWatch, 30000);
 }
 
 function switchTab(tab) {
@@ -296,7 +300,7 @@ function switchTab(tab) {
   }
 }
 
-const DAILY_COLSPAN = 16;
+const DAILY_COLSPAN = 17;
 const STATUS_LABEL = { watching: "Watching", settled: "Settled", dropped: "Dropped (no qualifying move)" };
 
 function renderDailyRow(tbody, r) {
@@ -313,9 +317,13 @@ function renderDailyRow(tbody, r) {
       + ` · checkpoint ${pct(r.checkpoint_pct)}`
     : r.status === "settled" ? `checkpoint ${pct(r.checkpoint_pct)} (model unavailable)`
     : "—";
+  const liveText = r.live_price != null
+    ? `${usd(r.live_price)} (${pct(r.live_pct)}) · ${r.live_session || ""}`
+    : "no data yet";
   tr.innerHTML = `
     <td class="ticker-cell">${r.ticker}</td>
     <td><span class="badge ${statusClass}">${STATUS_LABEL[r.status] || r.status}</span></td>
+    <td class="${r.live_pct != null ? (r.live_pct >= 0 ? 'move gain' : 'move drop') : 'sub'}">${liveText}</td>
     <td class="sub">${confirmedText}</td>
     <td class="sub">${r.sector || "Unknown"}</td>
     <td>${r.market_cap_at_scan ? "$" + (r.market_cap_at_scan / 1e9).toFixed(2) + "B" : "n/a"}</td>
@@ -402,12 +410,18 @@ async function loadDailyWatch() {
       amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">Nothing to watch yet.</td></tr>`;
       return;
     }
+    // Headings/copy are relative to the scan (evening before) but this dashboard is
+    // viewed live too - once watch_date has actually arrived, "tomorrow" reads as
+    // stale/wrong. Real gap found live during market hours 2026-08-17.
+    const isToday = data.watch_date === new Date().toLocaleDateString("en-CA");
+    document.getElementById("bmoHeading").textContent = isToday ? "Reporting Today — Before Open" : "Reporting Tomorrow — Before Open";
+    document.getElementById("amcHeading").textContent = isToday ? "Reported Yesterday — After Close" : "Reported Today — After Close";
     metaEl.textContent = `Watching for ${data.watch_date}'s open — ${data.bmo.length} before-open, ${data.amc.length} after-close`;
     bmoBody.innerHTML = "";
     amcBody.innerHTML = "";
-    if (data.bmo.length === 0) bmoBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reporting before tomorrow's open.</td></tr>`;
+    if (data.bmo.length === 0) bmoBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reporting before ${isToday ? "today's" : "tomorrow's"} open.</td></tr>`;
     else data.bmo.forEach(r => renderDailyRow(bmoBody, r));
-    if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close today.</td></tr>`;
+    if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close ${isToday ? "yesterday" : "today"}.</td></tr>`;
     else data.amc.forEach(r => renderDailyRow(amcBody, r));
 
     const previewEl = document.getElementById("previewAmcBody");

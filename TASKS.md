@@ -1,5 +1,22 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Real bugs found live during Monday's actual market open — fixed 2026-08-17
+First genuine trading-day test (HTHT reporting BMO) surfaced two real gaps, both found by
+Ashok actually watching the dashboard live, not by design review:
+1. **No auto-refresh at all.** `loadDailyWatch()` was only ever called once, on page load
+   (`initDashboard()`) - zero `setInterval` anywhere. A tab left open showed whatever it
+   looked like at load time forever, not live state. Fixed: polls every 30s. Also added a
+   real live-price column to the main table (`/api/daily-watch` now joins the latest
+   `live_reaction_ticks` row per watch_id) - previously the only way to see the forming
+   reaction at all was clicking into the raw-ticks detail view.
+2. **Stale section headings once watch_date actually arrives.** "Reporting Tomorrow" /
+   "Reported Today" are correct language the evening the scan runs, but read as wrong once
+   you're actually viewing the dashboard ON watch_date itself (e.g. Monday morning showing
+   "Reporting Tomorrow" for a stock reporting that same morning). Fixed: headings/empty-
+   state copy now flip based on whether `watch_date` is today.
+Both live-verified against the real, live HTHT situation during actual market hours
+(premarket +8.9%, real-time in the browser) before being called done.
+
 ## 🟢 Checkpoint-lock notifications — working via AGSTOX push relay, closed 2026-08-16
 SMS attempt (below) turned out to be carrier-blocked (real A2P 10DLC compliance issue,
 not fixable via code - needs Ashok's actual business registration through Twilio's

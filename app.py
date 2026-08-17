@@ -252,9 +252,14 @@ def daily_watch(user=Depends(get_user)):
         if not latest:
             return {"watch_date": None, "bmo": [], "amc": []}
         cur.execute("""
-            SELECT dw.*, lq.price, lq.day_change_pct
+            SELECT dw.*, lq.price, lq.day_change_pct,
+                   lt.price AS live_price, lt.pct_from_baseline AS live_pct, lt.ts_utc AS live_ts,
+                   lt.session AS live_session
             FROM daily_watch dw
             LEFT JOIN live_quotes lq ON lq.ticker = dw.ticker
+            LEFT JOIN live_reaction_ticks lt ON lt.id = (
+                SELECT id FROM live_reaction_ticks WHERE watch_id = dw.id ORDER BY ts_utc DESC LIMIT 1
+            )
             WHERE dw.watch_date=%s
             ORDER BY dw.track, dw.ticker
         """, (latest,))
@@ -283,6 +288,10 @@ def daily_watch(user=Depends(get_user)):
                 "predicted_probability": float(r["predicted_probability"]) if r["predicted_probability"] is not None else None,
                 "predicted_expected_days": float(r["predicted_expected_days"]) if r["predicted_expected_days"] is not None else None,
                 "predicted_direction": r["predicted_direction"],
+                "live_price": float(r["live_price"]) if r["live_price"] is not None else None,
+                "live_pct": float(r["live_pct"]) if r["live_pct"] is not None else None,
+                "live_ts": str(r["live_ts"]) if r["live_ts"] else None,
+                "live_session": r["live_session"],
             }
             out["bmo" if r["track"] == "bmo" else "amc"].append(item)
 
