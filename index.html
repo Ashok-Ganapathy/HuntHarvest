@@ -107,7 +107,15 @@
       <div id="tab-daily" class="tab-panel active">
         <div class="sub" id="dailyWatchMeta" style="margin-bottom:12px;">loading...</div>
 
-        <div class="panel-box">
+        <div class="controls" id="dailySectionTabs">
+          <button id="dsec-bmo" class="active" onclick="switchDailySection('bmo')">Before Open</button>
+          <button id="dsec-amc" onclick="switchDailySection('amc')">After Close</button>
+          <button id="dsec-previewTodayAmc" onclick="switchDailySection('previewTodayAmc')">This Evening (Preview)</button>
+          <button id="dsec-previewTomorrowBmo" onclick="switchDailySection('previewTomorrowBmo')">Tomorrow Before Open (Preview)</button>
+          <button id="dsec-previewTomorrowAmc" onclick="switchDailySection('previewTomorrowAmc')">Tomorrow After Close (Preview)</button>
+        </div>
+
+        <div class="panel-box daily-section" id="section-bmo">
           <h3 id="bmoHeading">Reporting Tomorrow — Before Open</h3>
           <div class="table-wrap">
             <table>
@@ -122,7 +130,7 @@
           </div>
         </div>
 
-        <div class="panel-box">
+        <div class="panel-box daily-section" id="section-amc" style="display:none;">
           <h3 id="amcHeading">Reported Today — After Close</h3>
           <div class="table-wrap">
             <table>
@@ -137,7 +145,7 @@
           </div>
         </div>
 
-        <div class="panel-box">
+        <div class="panel-box daily-section" id="section-previewTodayAmc" style="display:none;">
           <h3 id="previewTodayAmcHeading">Reporting Today Evening — After Close (Preview)</h3>
           <div class="sub" style="margin-bottom:8px;">Real reaction is tomorrow morning — tracking starts with tonight's scan. No baseline features yet, that's captured then.</div>
           <div class="table-wrap">
@@ -153,7 +161,7 @@
           </div>
         </div>
 
-        <div class="panel-box">
+        <div class="panel-box daily-section" id="section-previewTomorrowBmo" style="display:none;">
           <h3>Reporting Tomorrow — Before Open (Preview)</h3>
           <div class="sub" style="margin-bottom:8px;">Early look — these become real tracked rows above once tonight's evening scan runs and captures their baseline.</div>
           <div class="table-wrap">
@@ -169,7 +177,7 @@
           </div>
         </div>
 
-        <div class="panel-box">
+        <div class="panel-box daily-section" id="section-previewTomorrowAmc" style="display:none;">
           <h3>Reporting Tomorrow — After Close (Preview)</h3>
           <div class="sub" style="margin-bottom:8px;">Real reaction is the day after tomorrow — earliest possible look, tracking starts tomorrow evening.</div>
           <div class="table-wrap">
@@ -344,6 +352,18 @@ function switchTab(tab) {
   }
 }
 
+function switchDailySection(section) {
+  document.querySelectorAll(".daily-section").forEach(el => el.style.display = "none");
+  document.querySelectorAll("#dailySectionTabs button").forEach(el => el.classList.remove("active"));
+  document.getElementById(`section-${section}`).style.display = "block";
+  document.getElementById(`dsec-${section}`).classList.add("active");
+}
+
+function setTabCount(btnId, baseLabel, n) {
+  const btn = document.getElementById(btnId);
+  if (btn) btn.textContent = n != null ? `${baseLabel} (${n})` : baseLabel;
+}
+
 const DAILY_COLSPAN = 17;
 const STATUS_LABEL = { watching: "Watching", settled: "Settled", dropped: "Dropped (no qualifying move)", preview: "Preview" };
 
@@ -465,6 +485,8 @@ async function loadDailyWatch() {
     document.getElementById("bmoHeading").textContent = isToday ? "Reporting Today — Before Open" : "Reporting Tomorrow — Before Open";
     document.getElementById("amcHeading").textContent = isToday ? "Reported Yesterday — After Close" : "Reported Today — After Close";
     metaEl.textContent = `Watching for ${data.watch_date}'s open — ${data.bmo.length} before-open, ${data.amc.length} after-close`;
+    setTabCount("dsec-bmo", "Before Open", data.bmo.length);
+    setTabCount("dsec-amc", "After Close", data.amc.length);
     bmoBody.innerHTML = "";
     amcBody.innerHTML = "";
     if (data.bmo.length === 0) bmoBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reporting before ${isToday ? "today's" : "tomorrow's"} open.</td></tr>`;
@@ -482,15 +504,16 @@ async function loadCalendarPreview() {
   // this runs on its own slower interval (added 2026-08-17, Ashok's request: full
   // data columns for these previews too, not just a ticker-name list).
   const sections = [
-    ["today_amc", "previewTodayAmcBody", "None reporting this evening."],
-    ["tomorrow_bmo", "previewTomorrowBmoBody", "None reporting tomorrow before open."],
-    ["tomorrow_amc", "previewTomorrowAmcBody", "None reporting tomorrow after close."],
+    ["today_amc", "previewTodayAmcBody", "None reporting this evening.", "dsec-previewTodayAmc", "This Evening (Preview)"],
+    ["tomorrow_bmo", "previewTomorrowBmoBody", "None reporting tomorrow before open.", "dsec-previewTomorrowBmo", "Tomorrow Before Open (Preview)"],
+    ["tomorrow_amc", "previewTomorrowAmcBody", "None reporting tomorrow after close.", "dsec-previewTomorrowAmc", "Tomorrow After Close (Preview)"],
   ];
   try {
     const data = await api("/api/calendar-preview");
-    sections.forEach(([key, bodyId, emptyMsg]) => {
+    sections.forEach(([key, bodyId, emptyMsg, tabId, tabLabel]) => {
       const body = document.getElementById(bodyId);
       const rows = data[key] || [];
+      setTabCount(tabId, tabLabel, rows.length);
       body.innerHTML = "";
       if (rows.length === 0) body.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">${emptyMsg}</td></tr>`;
       else rows.forEach(r => renderDailyRow(body, r));

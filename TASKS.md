@@ -1,5 +1,15 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Daily Watch restructured as horizontal tabs — 2026-08-17
+Ashok's request: the 5 vertically-stacked sections (Before Open / After Close / 3
+previews) took a lot of scrolling - converted to horizontal clickable tabs, one visible
+at a time, matching the same button style already used for Earnings Watch's Drops/Gains
+filter. Tab labels show live counts (e.g. "Tomorrow Before Open (Preview) (11)"), updated
+on every poll. All data-loading logic unchanged - `loadDailyWatch()`/`loadCalendarPreview()`
+still populate all five tbodies regardless of which is visible, just the display toggles.
+Live-verified: default tab shows 3 real dropped tickers, switching to the tomorrow-BMO
+preview tab instantly shows 11 real tickers with sector/market-cap data, no reload.
+
 ## 🟢 Calendar preview upgraded to full data columns + tomorrow BMO/AMC added — 2026-08-17
 Ashok's request: replace the plain ticker-name list (tonight's AMC reporters) with the
 same full column table as the real tracked rows, and add previews for tomorrow's BMO and
