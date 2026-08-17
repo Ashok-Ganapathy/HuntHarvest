@@ -1,0 +1,12 @@
+[Unit]
+Description=Run HuntHarvest morning catch-up scan weekday mornings before open
+
+[Timer]
+# 11:00 UTC = 7:00am ET (EDT) / 6:00am ET (EST) - always well before the 9:30 open in
+# both DST states, giving live_reaction_poll.py's premarket window time to see any
+# newly-added ticker from the first poll onward, not partway through the morning.
+OnCalendar=Mon..Fri 11:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

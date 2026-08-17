@@ -1,5 +1,37 @@
 # HuntHarvest — Pending Tasks
 
+## 🟢 Morning catch-up scan + baseline-contamination bug — found, fixed, verified 2026-08-17
+Ashok noticed EMAT/DRUG missing from today's watchlist despite genuinely reporting BMO
+today - cross-checked against AGSTOX's own independent earnings-calendar parse (same
+Finviz source, different code) via a live screenshot, which **confirmed both are real**
+(today · before open, alongside HTHT). Root cause: the evening scan is a single
+snapshot; Finviz added/confirmed these two AFTER last night's run, with no catch-up
+mechanism. My first read (dismissing DRUG/EMAT as not real opportunities, based on
+EMAT's price already having moved Friday) was premature and got corrected by checking
+AGSTOX's calendar rather than trusting my own read.
+
+Built `daily_watch_morning_catchup.py` (~7am ET daily, well before open) to catch
+same-day BMO reporters the evening scan missed. **Second real bug caught while
+building it**: my first manual run picked up a contaminated baseline (EMAT $3.08
+instead of Friday's real $3.03 close) because `compute_baseline_features()` always
+fetched through "today" and took the last row - correct for the evening scan (runs
+after close) but wrong run mid-session, where Polygon's "today" bar reflects the
+current in-progress price, not a clean baseline. Fixed with a new `exclude_today`
+parameter (also correctly filters the shared SPY/sector benchmark frames, not just the
+ticker's own bars - same contamination risk applied there too). Cleared the
+contaminated rows, reran, verified clean baselines exactly matching Friday's real
+closes (EMAT $3.03, DRUG $76.44).
+
+**Third, smaller bug in the same live-testing pass**: the "Reporting Tomorrow Evening"
+preview heading (FN/XP/YALA) was still hardcoded/static - same class of staleness as
+the two headings fixed earlier, just missed on that pass. Now dynamic like the other
+two, flips to "Reporting Today Evening" once watch_date arrives.
+
+All three fixes live-verified in the browser during actual Monday market hours:
+3 tickers now correctly tracked before-open (DRUG/EMAT/HTHT), preview heading correct,
+real live price still flowing for HTHT. New `huntharvest-morningcatchup.timer` (weekday
+11:00 UTC) deployed and enabled.
+
 ## 🟢 Real bugs found live during Monday's actual market open — fixed 2026-08-17
 First genuine trading-day test (HTHT reporting BMO) surfaced two real gaps, both found by
 Ashok actually watching the dashboard live, not by design review:

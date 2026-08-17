@@ -138,8 +138,8 @@
         </div>
 
         <div class="panel-box">
-          <h3>Reporting Tomorrow Evening — After Close</h3>
-          <div class="sub" style="margin-bottom:8px;">Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.</div>
+          <h3 id="previewHeading">Reporting Tomorrow Evening — After Close</h3>
+          <div id="previewSub" class="sub" style="margin-bottom:8px;">Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.</div>
           <div id="previewAmcBody" class="sub"></div>
         </div>
       </div>
@@ -424,9 +424,16 @@ async function loadDailyWatch() {
     if (data.amc.length === 0) amcBody.innerHTML = `<tr><td colspan="${DAILY_COLSPAN}" class="empty">None reported after close ${isToday ? "yesterday" : "today"}.</td></tr>`;
     else data.amc.forEach(r => renderDailyRow(amcBody, r));
 
+    // Real gap found live 2026-08-17 (Ashok caught it): this preview refers to
+    // watch_date's evening - once watch_date arrives (isToday), "tomorrow evening" is
+    // just wrong, it's tonight. Same fix pattern as the other two headings above.
+    document.getElementById("previewHeading").textContent = isToday ? "Reporting Today Evening — After Close" : "Reporting Tomorrow Evening — After Close";
+    document.getElementById("previewSub").textContent = isToday
+      ? "Preview only — real reaction is tomorrow morning, tracking starts with tonight's scan."
+      : "Preview only — real reaction is the day after, tracking starts with tomorrow evening's scan.";
     const previewEl = document.getElementById("previewAmcBody");
     const preview = data.preview_amc_tomorrow_evening || [];
-    previewEl.textContent = preview.length ? preview.join(", ") : "None reporting tomorrow evening.";
+    previewEl.textContent = preview.length ? preview.join(", ") : (isToday ? "None reporting this evening." : "None reporting tomorrow evening.");
   } catch (e) {
     metaEl.textContent = `Failed to load: ${e.message}`;
   }

@@ -133,15 +133,27 @@ def _nz(v):
     return float(v)
 
 
-def compute_baseline_features(ticker, sector, spy_df, sector_dfs):
+def compute_baseline_features(ticker, sector, spy_df, sector_dfs, exclude_today=False):
     """Same feature set/methodology as ingest_historical.py's historical events -
     RSI-14, ATR-14, SMA50/200-relative, 3m momentum, 20d volume ratio, market- and
-    sector-relative return - captured as of today's close."""
+    sector-relative return - captured as of today's close.
+
+    exclude_today: real bug found+fixed 2026-08-17 - this always fetched up through
+    "today" and took the last row as baseline, correct for the evening scan (runs
+    after close, so "today" IS the clean pre-reaction close) but wrong for a same-day
+    catch-up run that might happen mid-session, where Polygon's "today" bar reflects
+    the current IN-PROGRESS price, not a clean baseline. When True, drops any row
+    dated today before picking the last row, so the baseline is always the prior
+    trading day's real close regardless of what time this runs."""
     end = datetime.date.today().isoformat()
     start = (datetime.date.today() - datetime.timedelta(days=320)).isoformat()
     df = fetch_daily_bars(ticker, start, end)
     if df is None or len(df) < 20:
         return None
+    if exclude_today:
+        df = df[df["date"] < datetime.date.today()].reset_index(drop=True)
+        if len(df) < 20:
+            return None
     df = compute_indicators(df)
     r = df.iloc[-1]
     prev = df.iloc[-2] if len(df) > 1 else None
@@ -150,15 +162,22 @@ def compute_baseline_features(ticker, sector, spy_df, sector_dfs):
     price_vs_sma50 = ((r["close"] - r["sma_50"]) / r["sma_50"] * 100) if r["sma_50"] else None
     price_vs_sma200 = ((r["close"] - r["sma_200"]) / r["sma_200"] * 100) if r["sma_200"] else None
 
+    # Same exclude_today contamination risk applies to the shared SPY/sector frames -
+    # filter locally rather than assume the caller already did it, since spy_df/
+    # sector_dfs are fetched once and shared across every ticker in the batch.
+    spy_f = spy_df[spy_df["date"] < datetime.date.today()] if exclude_today and spy_df is not None else spy_df
+    sector_dfs_f = ({k: v[v["date"] < datetime.date.today()] for k, v in sector_dfs.items()}
+                     if exclude_today else sector_dfs)
+
     today_move = ((r["close"] - prev["close"]) / prev["close"] * 100) if prev is not None and prev["close"] else None
     market_ret = None
-    if today_move is not None and spy_df is not None and len(spy_df) > 1:
-        spy_move = (spy_df.iloc[-1]["close"] - spy_df.iloc[-2]["close"]) / spy_df.iloc[-2]["close"] * 100
+    if today_move is not None and spy_f is not None and len(spy_f) > 1:
+        spy_move = (spy_f.iloc[-1]["close"] - spy_f.iloc[-2]["close"]) / spy_f.iloc[-2]["close"] * 100
         market_ret = today_move - spy_move
     etf = SECTOR_ETF.get(sector)
     sector_ret = None
-    if today_move is not None and etf and etf in sector_dfs and len(sector_dfs[etf]) > 1:
-        sdf = sector_dfs[etf]
+    if today_move is not None and etf and etf in sector_dfs_f and len(sector_dfs_f[etf]) > 1:
+        sdf = sector_dfs_f[etf]
         s_move = (sdf.iloc[-1]["close"] - sdf.iloc[-2]["close"]) / sdf.iloc[-2]["close"] * 100
         sector_ret = today_move - s_move
 

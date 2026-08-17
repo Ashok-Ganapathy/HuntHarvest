@@ -1,0 +1,10 @@
+[Unit]
+Description=HuntHarvest morning catch-up scan for BMO reporters missed by the evening scan (one-shot)
+After=network.target mysql.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/var/www/huntorharvest
+EnvironmentFile=/var/www/huntorharvest/.env
+ExecStart=/var/www/huntorharvest/venv/bin/python3 daily_watch_morning_catchup.py
